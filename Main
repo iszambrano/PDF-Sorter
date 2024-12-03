@@ -1,0 +1,60 @@
+import fitz  # PyMuPDF
+import pytesseract
+from PIL import Image
+import io
+import tkinter as tk
+from tkinter import filedialog
+import re
+import os
+
+# Function to extract text from a PDF page
+def extract_text_from_page(page):
+    pix = page.get_pixmap(dpi=300)
+    img = Image.open(io.BytesIO(pix.tobytes()))
+    text = pytesseract.image_to_string(img)
+    return text
+
+# Function to extract last name from text
+def extract_last_name(text):
+    match = re.search(r"Last:\s*(\w+)", text)
+    if match:
+        last_name = match.group(1)
+        print(f"Extracted last name: {last_name}")  # Debugging line
+        return last_name
+    return ""
+
+# Create a file dialog to select the PDF file
+root = tk.Tk()
+root.withdraw()  # Hide the root window
+pdf_document = filedialog.askopenfilename(title="Select PDF file", filetypes=[("PDF files", "*.pdf")])
+
+if pdf_document:
+    # Open the PDF
+    doc = fitz.open(pdf_document)
+
+    # Extract text and last names
+    applications = []
+    for page_num in range(len(doc)):
+        page = doc.load_page(page_num)
+        text = extract_text_from_page(page)
+        last_name = extract_last_name(text)
+        applications.append((last_name, page_num))
+
+    print("Before sorting:", applications)  # Debugging line
+    applications.sort(key=lambda x: x[0].lower())  # Ensure case-insensitive sorting
+    print("After sorting:", applications)  # Debugging line
+
+    # Create a new PDF with sorted applications
+    new_doc = fitz.open()
+    for last_name, page_num in applications:
+        print(f"Adding page {page_num} with last name {last_name} to new PDF")  # Debugging line
+        new_doc.insert_pdf(doc, from_page=page_num, to_page=page_num)
+
+    # Extract the original file name without extension
+    original_file_name = os.path.splitext(os.path.basename(pdf_document))[0]
+    new_file_name = f"{original_file_name}_arranged.pdf"
+    # Save the new PDF
+    new_doc.save(new_file_name)
+    print("Sorted PDF saved as '{new_file_name}'")
+else:
+    print("No file selected")
